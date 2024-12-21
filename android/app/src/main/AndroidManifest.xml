@@ -1,6 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    
 
     <application
       android:name=".MainApplication"
@@ -10,6 +16,9 @@
       android:allowBackup="false"
       android:theme="@style/AppTheme"
       android:supportsRtl="true">
+      <meta-data
+    android:name="com.mapbox.token"
+    android:value="AIzaSyCR6m47owJG21hUsWuE3FbMR0sJS1NMO_Q" />
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"
@@ -22,5 +31,13 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
       </activity>
+      <meta-data android:name="com.google.android.geo.API_KEY" android:value="AIzaSyCR6m47owJG21hUsWuE3FbMR0sJS1NMO_Q" />
+      <meta-data android:name="com.transistorsoft.locationmanager.polygon.license" android:value="YOUR_POLYGON_LICENCE_KEY_HERE" />
+      <meta-data android:name="com.transistorsoft.locationmanager.hms.license" android:value="YOUR_HMS_LICENCE_KEY_HERE" />
+      <service
+    android:name=".MyTaskService"
+    android:permission="android.permission.BIND_JOB_SERVICE"
+    android:exported="true" />
+      
     </application>
 </manifest>
