@@ -1,39 +1,127 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {
   View,
   Text,
   Image,
-  Button,
-  StyleSheet,
   ScrollView,
   TouchableOpacity,
+  StyleSheet,
 } from 'react-native';
-import openMap from 'react-native-open-maps';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useNavigation} from '@react-navigation/native';
+import messaging from '@react-native-firebase/messaging';
+import notifee from '@notifee/react-native';
 
 const HomePage = ({orderData}) => {
-  const [confirmOrderId, setConfirmOrderId] = useState();
+  const [confirmOrderId, setConfirmOrderId] = useState(null);
   const navigation = useNavigation();
+  const previousOrderLength = useRef(orderData?.length || 0);
 
-  // Handler to open maps for navigation
+  
+  // Request Notification Permissions
+  const requestPermissions = async () => {
+    try {
+      const authStatus = await messaging().requestPermission();
+      const enabled =
+        authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+        authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+      if (enabled) {
+        console.log('Notification permission granted:', authStatus);
+        const fcmToken = await messaging().getToken();
+        console.log('FCM Token:', fcmToken);
+      } else {
+        console.warn('Notification permission denied');
+      }
+    } catch (error) {
+      console.error('Error requesting notification permissions:', error);
+    }
+  };
+
+  useEffect(() => {
+    requestPermissions();
+  }, []);
+
+  // Create Notification Channel
+  useEffect(() => {
+    const createNotificationChannel = async () => {
+      try {
+        await notifee.createChannel({
+          id: 'default',
+          name: 'Default Channel',
+        });
+        console.log('Notification channel created successfully');
+      } catch (error) {
+        console.error('Error creating notification channel:', error);
+      }
+    };
+
+    createNotificationChannel();
+  }, []);
+
+  // Handle Foreground Notifications
+  useEffect(() => {
+    const unsubscribe = messaging().onMessage(async remoteMessage => {
+      console.log('Foreground message received:', remoteMessage);
+
+      await notifee.displayNotification({
+        title: remoteMessage.notification?.title || 'New Notification',
+        body: remoteMessage.notification?.body || 'You have a new message.',
+        android: {
+          channelId: 'default',
+          smallIcon: 'yacht', // Ensure this matches your app's launcher icon
+        },
+      });
+    });
+
+    return unsubscribe; // Cleanup the listener
+  }, []);
+
+  // Handle Background Notifications
+  useEffect(() => {
+    messaging().setBackgroundMessageHandler(async remoteMessage => {
+      console.log('Background message received:', remoteMessage);
+
+      await notifee.displayNotification({
+        title: remoteMessage.notification?.title || 'New Notification',
+        body: remoteMessage.notification?.body || 'You have a new message.',
+        android: {
+          channelId: 'default',
+          smallIcon: 'yacht', // Ensure this matches your app's launcher icon
+        },
+      });
+    });
+  }, []);
+
+  // Trigger Notification for New Orders
+  useEffect(() => {
+    if (orderData?.length > previousOrderLength.current) {
+      const newOrders = orderData.length - previousOrderLength.current;
+      console.log("previousOrderLength start",newOrders)
+      // Display a notification for new orders
+      notifee.displayNotification({
+        title: 'New Orders Alert!',
+        body: `You have ${newOrders} new order(s).`,
+        android: {
+          channelId: 'default',
+          smallIcon: 'yacht',
+        },
+      });
+
+      // Update previous order length after notifying
+      previousOrderLength.current = orderData.length;
+      console.log("previousOrderLength",previousOrderLength)
+    }
+  }, [orderData]);
+
+  // Navigate to Delivery Location
   const navigateToLocation = async (latitude, longitude, _id) => {
     if (latitude && longitude) {
-      navigation.navigate('Map', {
-        latitude: latitude,
-        longitude: longitude,
-      });
+      navigation.navigate('Map', {latitude, longitude});
       setConfirmOrderId(_id);
       await AsyncStorage.setItem('orderId', _id);
     }
   };
-
-  // Navigate to ConfirmOrder page when confirmOrderId is set
-  // useEffect(() => {
-  //   if (confirmOrderId) {
-  //     navigation.navigate('Confirm Order', {orderId: confirmOrderId});
-  //   }
-  // }, [confirmOrderId, navigation]);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -41,7 +129,7 @@ const HomePage = ({orderData}) => {
         <Text style={styles.header}>Order Details</Text>
       </View>
       {orderData?.length > 0 ? (
-        orderData.map(({_id, orderId}) => (
+        orderData.reverse().map(({_id, orderId}) => (
           <View style={styles.card} key={_id}>
             <Text style={styles.label}>Order ID: {orderId?.orderId}</Text>
             <Text style={styles.label}>
@@ -103,6 +191,7 @@ const HomePage = ({orderData}) => {
                 Navigate to Delivery Location
               </Text>
             </TouchableOpacity>
+            
           </View>
         ))
       ) : (
@@ -116,6 +205,12 @@ const styles = StyleSheet.create({
   container: {
     padding: 20,
     backgroundColor: '#F0F4F8',
+  },
+  notificationButton: {
+    backgroundColor: '#007bff',
+    padding: 10,
+    borderRadius: 5,
+    marginVertical: 10,
   },
   header: {
     fontSize: 24,

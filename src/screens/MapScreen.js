@@ -1,5 +1,13 @@
 import React, {useEffect, useState, useRef} from 'react';
-import {StyleSheet, View, Text, Button, Animated, Image} from 'react-native';
+import {
+  StyleSheet,
+  View,
+  Text,
+  Button,
+  Animated,
+  Image,
+  Alert,
+} from 'react-native';
 import MapView, {
   Marker,
   Polyline,
@@ -12,8 +20,10 @@ import polyline from '@mapbox/polyline';
 import haversine from 'haversine';
 import {calculateRegion} from '../helper/helper';
 import {useNavigation} from '@react-navigation/native';
+// import {REACT_APP_MAP_URL} from '@env'
 
 const GOOGLE_MAPS_APIKEY = 'AIzaSyCR6m47owJG21hUsWuE3FbMR0sJS1NMO_Q';
+// console.log("map aPi", REACT_APP_MAP_URL);
 
 const MapScreen = ({route}) => {
   const ARROW_ICON = require('../assets/images/bike.png');
@@ -30,7 +40,7 @@ const MapScreen = ({route}) => {
   const [distance, setDistance] = useState(0);
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const animatedValue = useRef(new Animated.Value(1)).current;
- const navigation = useNavigation();
+  const navigation = useNavigation();
   const userAnimatedLocation = useRef(
     new AnimatedRegion({
       latitude: userLocation?.latitude || 37.78825,
@@ -97,26 +107,43 @@ const MapScreen = ({route}) => {
     return (bearing + 360) % 360; // Ensure the value is between 0 and 360
   };
   const fetchRoute = async (origin, destination) => {
+    console.log('destination', destination);
     const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&mode=driving&key=${GOOGLE_MAPS_APIKEY}`;
     try {
       const response = await fetch(url);
       const json = await response.json();
-      const steps = json?.routes[0]?.legs[0]?.steps;
-      const detailedRoute = steps.flatMap(step => {
-        return polyline
-          .decode(step.polyline?.points)
-          .map(([latitude, longitude]) => ({
-            latitude,
-            longitude,
-          }));
-      });
-      if (json.routes.length) {
-        // Decode polyline to get route coordinates
-        const points = polyline.decode(json.routes[0].overview_polyline.points);
-        setRouteCoordinates(detailedRoute);
+
+      // Validate the response structure
+      const routes = json.routes;
+      if (!routes || routes.length === 0) {
+        throw new Error('No routes found');
       }
+
+      const legs = routes[0]?.legs;
+      if (!legs || legs.length === 0) {
+        throw new Error('No legs found in route');
+      }
+
+      const steps = legs[0]?.steps;
+      if (!steps || steps.length === 0) {
+        throw new Error('No steps found in leg');
+      }
+
+      // Decode detailed route
+      const detailedRoute = steps.flatMap(step => {
+        const points = step.polyline?.points;
+        if (!points) return []; // Skip steps without polyline
+        return polyline.decode(points).map(([latitude, longitude]) => ({
+          latitude,
+          longitude,
+        }));
+      });
+
+      // Update route coordinates
+      setRouteCoordinates(detailedRoute);
     } catch (error) {
-      console.error('Error fetching route: ', error);
+      console.error('Error fetching route: ', error.message || error);
+      Alert.alert(error.message);
     }
   };
   // Start tracking user location
@@ -147,7 +174,7 @@ const MapScreen = ({route}) => {
           {latitude: destinationLat, longitude: destinationLng},
           {unit: 'km'},
         );
-        
+
         setDistance(distance);
 
         // Set previous location for next distance calculation
@@ -230,7 +257,7 @@ const MapScreen = ({route}) => {
           />
         </MapView>
       ) : (
-        <Text>Fetching user location...</Text>
+        <Text style={styles.fetchText}>Fetching user location...</Text>
       )}
 
       <View style={styles.bottomPanel}>
@@ -238,16 +265,16 @@ const MapScreen = ({route}) => {
         <Text style={styles.infoText}>
           Distance: {distance.toFixed(2) || 'Calculating'} km
         </Text>
-        {isJourneyStarted ? (<Button
-          title="Confirm Order"
-          onPress={()=>{navigation.navigate('Confirm Order')}}
-          
-        />):
-        <Button
-          title="Start Journey"
-          onPress={startJourney}
-         
-        />}
+        {isJourneyStarted ? (
+          <Button
+            title="Confirm Order"
+            onPress={() => {
+              navigation.navigate('Confirm Order');
+            }}
+          />
+        ) : (
+          <Button title="Start Journey" onPress={startJourney} />
+        )}
       </View>
     </View>
   );
@@ -277,5 +304,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 5,
+  },
+  fetchText: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 50,
+    color: 'red',
   },
 });

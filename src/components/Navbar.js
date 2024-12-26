@@ -10,13 +10,17 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Geolocation from '@react-native-community/geolocation';
-import {PERMISSIONS, request, RESULTS} from 'react-native-permissions';
+import {PERMISSIONS, request, check, RESULTS} from 'react-native-permissions';
 import BackgroundService from 'react-native-background-actions';
 import axios from 'axios';
 import {API} from '../constants';
 import {AppState, NativeModules} from 'react-native';
-import {stopBackgroundLocationUpdates, startBackgroundLocationUpdates} from '../helper/helper';
+import {
+  stopBackgroundLocationUpdates,
+  startBackgroundLocationUpdates,
+} from '../helper/helper';
 import Background from '../helper/Background';
+import OpenSettings from 'react-native-open-settings';
 
 const Navbar = () => {
   const [userData, setUserData] = useState(null);
@@ -92,6 +96,8 @@ const Navbar = () => {
   const requestLocationPermission = async () => {
     try {
       let permissionResult;
+
+      // Check and request location permission
       if (Platform.OS === 'android') {
         permissionResult = await request(
           PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION,
@@ -101,6 +107,7 @@ const Navbar = () => {
       }
 
       if (permissionResult === RESULTS.GRANTED) {
+        // Start watching the user's location
         const id = Geolocation.watchPosition(
           position => {
             const {latitude, longitude} = position.coords;
@@ -108,16 +115,58 @@ const Navbar = () => {
             updateLocationOnServer(latitude, longitude);
           },
           error => {
-            console.error('Error watching position:', error.message);
+            console.log('error', error);
+            Alert.alert(
+              'Permission Denied',
+              'Location permission is required to use this feature. Please Turn On Location.',
+              [
+                {text: 'Cancel', style: 'cancel'},
+                {
+                  text: 'Open Settings',
+                  onPress: () => OpenSettings.openSettings(),
+                },
+              ],
+            );
           },
           {enableHighAccuracy: true, distanceFilter: 10},
         );
         setWatchId(id);
-      } else {
-        Alert.alert('Permission Denied', 'Location permission is required.');
+      } else if (permissionResult === RESULTS.DENIED) {
+        // If permission is denied, inform the user
+        Alert.alert(
+          'Permission Denied',
+          'Location permission is required to use this feature. Please grant the permission.',
+          [
+            {text: 'Cancel', style: 'cancel'},
+            {text: 'Open Settings', onPress: () => OpenSettings.openSettings()},
+          ],
+        );
+      } else if (permissionResult === RESULTS.BLOCKED) {
+        // If permission is permanently blocked, navigate to settings
+        Alert.alert(
+          'Permission Blocked',
+          'Location permission is permanently denied. Please enable it from the settings.',
+          [
+            {text: 'Cancel', style: 'cancel'},
+            {text: 'Open Settings', onPress: () => OpenSettings.openSettings()},
+          ],
+        );
       }
     } catch (error) {
-      console.error('Error requesting location permission:', error);
+      // Handle location-related errors
+      if (error.code === 2) {
+        // Location services disabled
+        Alert.alert(
+          'Enable Location Services',
+          'Location services are disabled. Would you like to turn them on?',
+          [
+            {text: 'Cancel', style: 'cancel'},
+            {text: 'Open Settings', onPress: () => OpenSettings.openSettings()},
+          ],
+        );
+      } else {
+        console.error('Error requesting location permission:', error);
+      }
     }
   };
 
@@ -195,7 +244,6 @@ const Navbar = () => {
           trackColor={{false: '#767577', true: '#81c784'}}
         />
       </View>
-     
     </View>
   );
 };

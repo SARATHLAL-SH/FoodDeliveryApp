@@ -12,10 +12,11 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import {API} from '../constants';
+import {Screen} from '../components/Notification';
 
 const ConfirmOrder = ({navigation}) => {
-  const confirmImg = require('../assets/images/confirm.jpg');
   // const navigate = useNavigate();
+
   const handleConfirmOrder = async () => {
     try {
       const orderId = await AsyncStorage.getItem('orderId');
@@ -45,8 +46,6 @@ const ConfirmOrder = ({navigation}) => {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Confirm Order</Text>
-      <Image source={confirmImg} style={styles.confirmImage} />
-
       <Button title="Confirm Order" onPress={handleConfirmOrder} />
     </View>
   );
